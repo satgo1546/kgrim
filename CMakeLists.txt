@@ -9,4 +9,16 @@ qt_standard_project_setup()
 qt_add_executable(kgrim kgrim.cpp)
 target_link_libraries(kgrim PRIVATE Qt6::Core)
 
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
+	execute_process(
+		COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+		OUTPUT_VARIABLE GIT_VERSION
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET
+	)
+endif()
+target_compile_definitions(kgrim PRIVATE VERSION="${GIT_VERSION}")
+
 install(TARGETS kgrim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
