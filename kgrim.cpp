@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
 	QFile file;
 	if (filename == u"-"_s) {
 		if (!file.open(STDOUT_FILENO, QIODevice::WriteOnly)) {
-			die(u"failed to open stdout: %1"_s.arg(writer.errorString()));
+			die(u"failed to open stdout: %1"_s.arg(file.errorString()));
 		}
 		writer.setDevice(&file);
 	} else {
