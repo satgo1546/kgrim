@@ -3,11 +3,11 @@ project(kgrim LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui DBus)
 
 qt_standard_project_setup()
 qt_add_executable(kgrim kgrim.cpp)
-target_link_libraries(kgrim PRIVATE Qt6::Core)
+target_link_libraries(kgrim PRIVATE Qt6::Core Qt6::Gui Qt6::DBus)
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
