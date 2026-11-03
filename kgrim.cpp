@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 		parser.addHelpOption();
 		parser.addVersionOption();
 		parser.addOptions({
-			{ u"g"_s, u"Capture a region in `x,y widthxheight` format, or `-` to read the region from stdin."_s, u"geometry"_s },
+			{ u"g"_s, u"Capture a region in `wxh+x+y` or `x,y wxh` format, or `-` to read the region from stdin."_s, u"geometry"_s },
 			{ u"o"_s, u"Capture a screen by its output name (e.g. DP-1), or the active screen if argument is empty."_s, u"output"_s },
 			{ u"T"_s, u"Capture a window by its UUID, or the active window if argument is empty."_s, u"identifier"_s },
 			// { u"s"_s, u"Set the output image scale factor. (default: native)"_s, u"factor"_s },
@@ -95,26 +95,35 @@ int main(int argc, char *argv[]) {
 			if (geometry_string == u"-"_s) {
 				geometry_string = QTextStream(stdin).readLine();
 			}
-			QRegularExpressionMatch match = QRegularExpression(u"^ *([+-]?[0-9]+), *([+-]?[0-9]+) +([0-9]+)x([0-9]+)$"_s).match(geometry_string);
-			if (!match.hasMatch()) {
-				die(u"invalid geometry"_s);
+			geometry_string = geometry_string.trimmed();
+			QRegularExpressionMatch match = QRegularExpression(u"^([+-]?[0-9]+), *([+-]?[0-9]+) +([0-9]+)x([0-9]+)$"_s).match(geometry_string);
+			QStringList groups;
+			if (match.hasMatch()) {
+				groups = match.capturedTexts();
+			} else {
+				match = QRegularExpression(u"^([0-9]+)x([0-9]+)([+-][0-9]+)([+-][0-9]+)$"_s).match(geometry_string);
+				if (match.hasMatch()) {
+					groups = { u""_s, match.captured(3), match.captured(4), match.captured(1), match.captured(2) };
+				} else {
+					die(u"-g geometry invalid"_s);
+				}
 			}
 			bool ok = false;
-			int x = match.captured(1).toInt(&ok);
+			int x = groups[1].toInt(&ok);
 			if (!ok) {
-				die(u"invalid geometry x"_s);
+				die(u"-g geometry invalid x"_s);
 			}
-			int y = match.captured(2).toInt(&ok);
+			int y = groups[2].toInt(&ok);
 			if (!ok) {
-				die(u"invalid geometry y"_s);
+				die(u"-g geometry invalid y"_s);
 			}
-			uint width = match.captured(3).toUInt(nullptr);
+			uint width = groups[3].toUInt(nullptr);
 			if (!width) {
-				die(u"invalid geometry width"_s);
+				die(u"-g geometry invalid width"_s);
 			}
-			uint height = match.captured(4).toUInt(nullptr);
+			uint height = groups[4].toUInt(nullptr);
 			if (!height) {
-				die(u"invalid geometry height"_s);
+				die(u"-g geometry invalid height"_s);
 			}
 			arguments << x << y << width << height;
 		} else if (parser.isSet(u"o"_s)) {
