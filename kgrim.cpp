@@ -36,19 +36,21 @@ int main(int argc, char *argv[]) {
 	QCoreApplication::setApplicationVersion(QStringLiteral(VERSION));
 	QImageWriter writer;
 	QString filename;
+	QString method;
+	QVariantList arguments;
 	bool includeCursor = false;
 	{
 		QCommandLineParser parser;
 		parser.addHelpOption();
 		parser.addVersionOption();
 		parser.addOptions({
+			{ u"g"_s, u"Capture a region in `x,y widthxheight` format, or `-` to read the region from stdin."_s, u"geometry"_s },
+			{ u"o"_s, u"Capture a screen by its output name (e.g. DP-1)."_s, u"output"_s },
+			{ u"T"_s, u"Capture a window by its UUID."_s, u"identifier"_s },
 			// { u"s"_s, u"Set the output image scale factor. (default: native)"_s, u"factor"_s },
-			// { u"g"_s, u"Set the region to capture in `x,y widthxheight` format, or `-` to read from stdin."_s, u"geometry"_s },
 			{ u"t"_s, u"Set output file type. (possible values: png, ppm, jpeg) (default: png)"_s, u"type"_s, u"png"_s },
 			{ u"q"_s, u"Set JPEG quality (0-100)."_s, u"quality"_s, u"80"_s },
 			{ u"l"_s, u"Set PNG compression level (0-9)."_s, u"level"_s, u"6"_s },
-			// { u"o"_s, u"Set the output name to capture (e.g. DP-1)."_s, u"output"_s },
-			// { u"T"_s, u"Set the identifier of a foreign toplevel handle to capture."_s, u"identifier"_s },
 			{ u"c"_s, u"Include cursors in the screenshot."_s },
 		});
 		parser.addPositionalArgument(u"filename"_s, u"Output filename, or `-` for stdout."_s, u"[filename]"_s);
@@ -83,7 +85,38 @@ int main(int argc, char *argv[]) {
 			// compression = (compression * 9) / 91; // map [0,100] -> [0,9]
 			writer.setCompression(level * 11);
 		}
-		includeCursor = parser.isSet(u"c"_s);
+		if (parser.isSet(u"g"_s) + parser.isSet(u"o"_s) + parser.isSet(u"T"_s) > 1) {
+			die(u"-g, -o, -T are mutually exclusive"_s);
+		}
+		if (parser.isSet(u"g"_s)) {
+			method = u"CaptureArea"_s;
+			die(u"TODO"_s);
+		} else if (parser.isSet(u"o"_s)) {
+			QString screenName = parser.value(u"o"_s);
+			if (screenName.isEmpty()) {
+				method = u"CaptureActiveScreen"_s;
+			} else {
+				method = u"CaptureScreen"_s;
+				arguments << screenName;
+			}
+		} else if (parser.isSet(u"T"_s)) {
+			QString windowHandle = parser.value(u"T"_s);
+			if (windowHandle.isEmpty()) {
+				method = u"CaptureActiveWindow"_s;
+			} else {
+				method = u"CaptureWindow"_s;
+				arguments << windowHandle;
+			}
+		} else {
+			method = u"CaptureWorkspace"_s;
+		}
+		arguments << QVariantMap {
+			{ u"include-cursor"_s, parser.isSet(u"c"_s) },
+			{ u"native-resolution"_s, true },
+			{ u"include-decoration"_s, true },
+			{ u"include-shadow"_s, true },
+			{ u"hide-caller-windows"_s, false },
+		};
 		const QStringList args = parser.positionalArguments();
 		if (args.size() > 1) {
 			die(u"too many filenames"_s);
@@ -113,18 +146,9 @@ int main(int argc, char *argv[]) {
 			std::perror("kgrim: failed to create screenshot pipe: ");
 			return 1;
 		}
+		arguments << QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1]));
 		QDBusMessage reply;
-		QString method;
 		{
-			QVariantList arguments;
-			method = u"CaptureWorkspace"_s;
-			arguments << QVariantMap {
-				{ u"include-cursor"_s, includeCursor },
-				{ u"native-resolution"_s, true },
-				{ u"include-decoration"_s, false },
-				{ u"include-shadow"_s, false },
-				{ u"hide-caller-windows"_s, false },
-			} << QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1]));
 			QDBusMessage request = QDBusMessage::createMethodCall(
 				u"org.kde.KWin.ScreenShot2"_s,
 				u"/org/kde/KWin/ScreenShot2"_s,
