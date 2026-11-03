@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	QString filename;
 	QString method;
 	QVariantList arguments;
-	bool includeCursor = false;
+	double optionScale = 0;
 	{
 		QCommandLineParser parser;
 		parser.addHelpOption();
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 			{ u"g"_s, u"Capture a region in `wxh+x+y` or `x,y wxh` format, or `-` to read the region from stdin."_s, u"geometry"_s },
 			{ u"o"_s, u"Capture a screen by its output name (e.g. DP-1), or the active screen if argument is empty."_s, u"output"_s },
 			{ u"T"_s, u"Capture a window by its UUID, or the active window if argument is empty."_s, u"identifier"_s },
-			// { u"s"_s, u"Set the output image scale factor. (default: native)"_s, u"factor"_s },
+			{ u"s"_s, u"Set the output image scale factor. (default: native)"_s, u"factor"_s },
 			{ u"t"_s, u"Set output file type. (possible values: png, ppm, jpeg) (default: png)"_s, u"type"_s, u"png"_s },
 			{ u"q"_s, u"Set JPEG quality (0-100)."_s, u"quality"_s, u"80"_s },
 			{ u"l"_s, u"Set PNG compression level (0-9)."_s, u"level"_s, u"6"_s },
@@ -145,9 +145,16 @@ int main(int argc, char *argv[]) {
 		} else {
 			method = u"CaptureWorkspace"_s;
 		}
+		if (parser.isSet(u"s"_s)) {
+			bool ok;
+			optionScale = parser.value(u"s"_s).toDouble(&ok);
+			if (!ok || !qIsFinite(optionScale) || optionScale <= 0) {
+				die(u"-s scale invalid"_s);
+			}
+		}
 		arguments << QVariantMap {
 			{ u"include-cursor"_s, parser.isSet(u"c"_s) },
-			{ u"native-resolution"_s, true },
+			{ u"native-resolution"_s, optionScale == 1 ? optionScale = 0, false : true },
 			{ u"include-decoration"_s, true },
 			{ u"include-shadow"_s, true },
 			{ u"hide-caller-windows"_s, false },
@@ -171,6 +178,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	QImage image;
+	double capturedScale;
 	{
 		const QDBusConnection bus = QDBusConnection::sessionBus();
 		if (!bus.isConnected()) {
@@ -208,10 +216,12 @@ int main(int argc, char *argv[]) {
 		const uint format = metadata[u"format"_s].toUInt(nullptr);
 		const int width = metadata[u"width"_s].toInt(nullptr);
 		const int height = metadata[u"height"_s].toInt(nullptr);
+		const double scale = metadata[u"scale"_s].toDouble(nullptr);
 		if (!format || format >= QImage::NImageFormats || width <= 0 || height <= 0) {
 			die(u"%1 reply invalid"_s.arg(method));
 		}
 		image = QImage(width, height, QImage::Format(format));
+		capturedScale = scale ? scale : 1;
 		QFile file;
 		if (!file.open(pipeFds[0], QFileDevice::ReadOnly, QFileDevice::AutoCloseHandle)) {
 			::close(pipeFds[0]);
@@ -220,6 +230,15 @@ int main(int argc, char *argv[]) {
 		QDataStream stream(&file);
     stream.readRawData(reinterpret_cast<char *>(image.bits()), image.sizeInBytes());
 	}
+	if (optionScale) {
+		image = image.scaled(
+			qRound(image.width() / capturedScale * optionScale),
+			qRound(image.height() / capturedScale * optionScale),
+			Qt::IgnoreAspectRatio,
+			Qt::SmoothTransformation
+		);
+	}
+
 	QFile file;
 	if (filename == u"-"_s) {
 		if (!file.open(STDOUT_FILENO, QIODevice::WriteOnly)) {
