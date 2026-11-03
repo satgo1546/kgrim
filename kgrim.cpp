@@ -45,8 +45,8 @@ int main(int argc, char *argv[]) {
 		parser.addVersionOption();
 		parser.addOptions({
 			{ u"g"_s, u"Capture a region in `x,y widthxheight` format, or `-` to read the region from stdin."_s, u"geometry"_s },
-			{ u"o"_s, u"Capture a screen by its output name (e.g. DP-1)."_s, u"output"_s },
-			{ u"T"_s, u"Capture a window by its UUID."_s, u"identifier"_s },
+			{ u"o"_s, u"Capture a screen by its output name (e.g. DP-1), or the active screen if argument is empty."_s, u"output"_s },
+			{ u"T"_s, u"Capture a window by its UUID, or the active window if argument is empty."_s, u"identifier"_s },
 			// { u"s"_s, u"Set the output image scale factor. (default: native)"_s, u"factor"_s },
 			{ u"t"_s, u"Set output file type. (possible values: png, ppm, jpeg) (default: png)"_s, u"type"_s, u"png"_s },
 			{ u"q"_s, u"Set JPEG quality (0-100)."_s, u"quality"_s, u"80"_s },
@@ -86,11 +86,37 @@ int main(int argc, char *argv[]) {
 			writer.setCompression(level * 11);
 		}
 		if (parser.isSet(u"g"_s) + parser.isSet(u"o"_s) + parser.isSet(u"T"_s) > 1) {
+			// -g and -T can be used together in grim, but this usage is not documented.
 			die(u"-g, -o, -T are mutually exclusive"_s);
 		}
 		if (parser.isSet(u"g"_s)) {
 			method = u"CaptureArea"_s;
-			die(u"TODO"_s);
+			QString geometry_string = parser.value(u"g"_s);
+			if (geometry_string == u"-"_s) {
+				geometry_string = QTextStream(stdin).readLine();
+			}
+			QRegularExpressionMatch match = QRegularExpression(u"^ *([+-]?[0-9]+), *([+-]?[0-9]+) +([0-9]+)x([0-9]+)$"_s).match(geometry_string);
+			if (!match.hasMatch()) {
+				die(u"invalid geometry"_s);
+			}
+			bool ok = false;
+			int x = match.captured(1).toInt(&ok);
+			if (!ok) {
+				die(u"invalid geometry x"_s);
+			}
+			int y = match.captured(2).toInt(&ok);
+			if (!ok) {
+				die(u"invalid geometry y"_s);
+			}
+			uint width = match.captured(3).toUInt(nullptr);
+			if (!width) {
+				die(u"invalid geometry width"_s);
+			}
+			uint height = match.captured(4).toUInt(nullptr);
+			if (!height) {
+				die(u"invalid geometry height"_s);
+			}
+			arguments << x << y << width << height;
 		} else if (parser.isSet(u"o"_s)) {
 			QString screenName = parser.value(u"o"_s);
 			if (screenName.isEmpty()) {
