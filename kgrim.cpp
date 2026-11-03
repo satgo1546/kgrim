@@ -52,6 +52,8 @@ int main(int argc, char *argv[]) {
 			{ u"q"_s, u"Set JPEG quality (0-100)."_s, u"quality"_s, u"80"_s },
 			{ u"l"_s, u"Set PNG compression level (0-9)."_s, u"level"_s, u"6"_s },
 			{ u"c"_s, u"Include cursors in the screenshot."_s },
+			{ u"include-decoration"_s, u"Include window decorations in the screenshot."_s },
+			{ u"include-shadow"_s, u"Include window shadow in the screenshot."_s },
 		});
 		parser.addPositionalArgument(u"filename"_s, u"Output filename, or `-` for stdout."_s, u"[filename]"_s);
 		parser.process(application);
@@ -155,8 +157,8 @@ int main(int argc, char *argv[]) {
 		arguments << QVariantMap {
 			{ u"include-cursor"_s, parser.isSet(u"c"_s) },
 			{ u"native-resolution"_s, optionScale == 1 ? optionScale = 0, false : true },
-			{ u"include-decoration"_s, true },
-			{ u"include-shadow"_s, true },
+			{ u"include-decoration"_s, parser.isSet(u"include-decoration"_s) },
+			{ u"include-shadow"_s, parser.isSet(u"include-shadow"_s) },
 			{ u"hide-caller-windows"_s, false },
 		};
 		const QStringList args = parser.positionalArguments();
