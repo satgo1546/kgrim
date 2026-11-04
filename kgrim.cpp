@@ -195,6 +195,7 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 		arguments << QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1]));
+		::close(pipeFds[1]);
 		QDBusMessage reply;
 		{
 			QDBusMessage request = QDBusMessage::createMethodCall(
@@ -206,7 +207,7 @@ int main(int argc, char *argv[]) {
 			request.setArguments(arguments);
 			reply = bus.call(request, QDBus::Block);
 		}
-		::close(pipeFds[1]);
+		arguments.clear(); // close QDBusUnixFileDescriptor
 		if (reply.type() == QDBusMessage::ErrorMessage) {
 			die(u"%1: %2: %3"_s.arg(method, reply.errorName(), reply.errorMessage()));
 		}
