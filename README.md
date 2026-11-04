@@ -63,6 +63,12 @@ Take a screenshot of the focused window:
 kgrim -T ""
 ```
 
+Select a window and take a screenshot of it:
+
+```sh
+kgrim -T "$(qdbus org.kde.KWin /KWin org.kde.KWin.queryWindowInfo | sed -n 's/^uuid: //p')"
+```
+
 Pick a color, using slurp and ImageMagick:
 
 ```sh
