@@ -13,6 +13,9 @@ cmake --build build
 cmake --install build
 ```
 
+There are no packages for distributions currently.
+Contributions are welcome.
+
 ## Usage
 
 Take a screenshot of the entire workspace and save it in `$GRIM_DEFAULT_DIR` or the pictures directory:
@@ -75,16 +78,35 @@ Pick a color, using slurp and ImageMagick:
 kgrim -g "$(slurp -p)" -t ppm - | convert - -format '%[pixel:p{0,0}]' txt:-
 ```
 
+Note the use of PPM,
+a simple, uncompressed format.
+PPM is more efficient than PNG in a pipeline
+where compression between stages is only a waste of time.
+
 ## Notes
+
+### Implementation
 
 kgrim uses the same
 [D-Bus interface](https://invent.kde.org/plasma/kwin/-/blob/v6.8.2/src/plugins/screenshot/org.kde.KWin.ScreenShot2.xml)
 that Spectacle
 [calls](https://invent.kde.org/plasma/spectacle/-/blob/v6.8.2/src/Platforms/ImagePlatformKWin.cpp).
 
+The methods return raw image bytes in
+[formats supported by QImage](https://doc.qt.io/qt-6/qimage.html#Format-enum).
+The exact format they return is not stable across KWin versions.
+For instance,
+the format of full screen and rectangular area shots has been
+[changed](https://invent.kde.org/plasma/kwin/-/merge_requests/9798)
+from `QImage::Format_RGBA8888_Premultiplied` to `QImage::Format_RGBX8888`
+in Plasma 6.8.
+Which means proper use of the interface practically requires Qt.
+
+### Compatibility with older KWin versions
+
 Before Plasma 6.8,
 a relevant desktop file (either system-wide or user-local)
-is required for the D-Bus interface to work.
+was required for the D-Bus interface to function.
 Such restriction is subsequently
 [lifted](https://invent.kde.org/plasma/kwin/-/merge_requests/6057).
 If you are on the old versions,
@@ -98,6 +120,8 @@ Exec="/full/path/to/kgrim"
 NoDisplay=true
 X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
 ```
+
+### Benchmark
 
 The D-Bus interface is fast.
 kgrim is 90x faster than the `spectacle` command line on my machine:
