@@ -11,10 +11,13 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QImageWriter>
+#include <QRegularExpression>
 #include <QStandardPaths>
+#include <QTextStream>
 #include <QVariantMap>
 
 #include <cstdio>
+#include <cstdlib>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -208,7 +211,7 @@ int main(int argc, char *argv[]) {
 			die(u"%1: %2: %3"_s.arg(method, reply.errorName(), reply.errorMessage()));
 		}
 		if (reply.arguments().size() != 1) {
-			die(u"%1 replied with %2 arguments?!"_s.arg(method, reply.arguments().size()));
+			die(u"%1 replied with %2 arguments?!"_s.arg(method).arg(reply.arguments().size()));
 		}
 		const QVariantMap metadata = qdbus_cast<QVariantMap>(reply.arguments().at(0));
 		if (metadata[u"type"_s].toString() != u"raw"_s) {
@@ -223,7 +226,7 @@ int main(int argc, char *argv[]) {
 			die(u"%1 reply invalid"_s.arg(method));
 		}
 		image = QImage(width, height, QImage::Format(format));
-		capturedScale = scale ? scale : 1;
+		capturedScale = qIsFinite(scale) && scale > 0 ? scale : 1;
 		QFile file;
 		if (!file.open(pipeFds[0], QFileDevice::ReadOnly, QFileDevice::AutoCloseHandle)) {
 			::close(pipeFds[0]);
