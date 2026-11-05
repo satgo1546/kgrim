@@ -58,15 +58,16 @@ Take a screenshot of the focused monitor:
 
 ```sh
 kgrim -o ""
+kgrim -o "$(qdbus org.kde.KWin /KWin org.kde.KWin.activeOutputName)"
 ```
 
-Take a screenshot of the focused window:
+Take a screenshot of the focused window, including window decoration and shadow:
 
 ```sh
-kgrim -T ""
+kgrim -T "" --include-decoration --include-shadow
 ```
 
-Select a window and take a screenshot of it:
+Select a window and take a screenshot of its content:
 
 ```sh
 kgrim -T "$(qdbus org.kde.KWin /KWin org.kde.KWin.queryWindowInfo | sed -n 's/^uuid: //p')"
