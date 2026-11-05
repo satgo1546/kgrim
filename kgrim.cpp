@@ -189,32 +189,62 @@ int main(int argc, char *argv[]) {
 		if (!bus.isConnected()) {
 			die(u"failed to connect to the session bus: %1"_s.arg(bus.lastError().message()));
 		}
-		int pipeFds[2];
-		if (::pipe2(pipeFds, O_CLOEXEC) != 0) {
-			std::perror("kgrim: failed to create screenshot pipe: ");
-			return 1;
-		}
-		arguments << QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1]));
-		::close(pipeFds[1]);
-		QDBusMessage reply;
+		int fd;
+		QVariantMap metadata;
 		{
-			QDBusMessage request = QDBusMessage::createMethodCall(
-				u"org.kde.KWin.ScreenShot2"_s,
-				u"/org/kde/KWin/ScreenShot2"_s,
-				u"org.kde.KWin.ScreenShot2"_s,
-				method
-			);
-			request.setArguments(arguments);
-			reply = bus.call(request, QDBus::Block);
+			QDBusMessage reply;
+			{
+				QDBusMessage request = QDBusMessage::createMethodCall(
+					u"org.kde.KWin.ScreenShot3"_s,
+					u"/org/kde/KWin/ScreenShot3"_s,
+					u"org.kde.KWin.ScreenShot3"_s,
+					method
+				);
+				request.setArguments(arguments);
+				reply = bus.call(request, QDBus::Block);
+			}
+			if (reply.type() == QDBusMessage::ReplyMessage) {
+				arguments = reply.arguments();
+				if (arguments.size() != 2) {
+					die(u"org.kde.KWin.ScreenShot3 %1 replied with %2 arguments?!"_s.arg(method).arg(reply.arguments().size()));
+				}
+				fd = qdbus_cast<QDBusUnixFileDescriptor>(arguments[0]).fileDescriptor();
+				metadata = qdbus_cast<QVariantMap>(arguments[1]);
+			} else if (QDBusError(reply).type() == QDBusError::ServiceUnknown) {
+				int pipeFds[2];
+				if (::pipe2(pipeFds, O_CLOEXEC) != 0) {
+					std::perror("kgrim: failed to create screenshot pipe: ");
+					return 1;
+				}
+				fd = pipeFds[0];
+				arguments << QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1]));
+				::close(pipeFds[1]);
+				{
+					QDBusMessage request = QDBusMessage::createMethodCall(
+						u"org.kde.KWin.ScreenShot2"_s,
+						u"/org/kde/KWin/ScreenShot2"_s,
+						u"org.kde.KWin.ScreenShot2"_s,
+						method
+					);
+					request.setArguments(arguments);
+					reply = bus.call(request, QDBus::Block);
+				}
+				if (reply.type() == QDBusMessage::ReplyMessage) {
+					// The following assignment destructs the arguments we passed.
+					// Specifically, it closes the QDBusUnixFileDescriptor(pipeFds[1]).
+					// This makes sure small images do not hang the pipe.
+					arguments = reply.arguments();
+					if (arguments.size() != 1) {
+						die(u"org.kde.KWin.ScreenShot2 %1 replied with %2 arguments?!"_s.arg(method).arg(reply.arguments().size()));
+					}
+					metadata = qdbus_cast<QVariantMap>(arguments[0]);
+				} else {
+					die(u"org.kde.KWin.ScreenShot2 %1: %2: %3"_s.arg(method, reply.errorName(), reply.errorMessage()));
+				}
+			} else {
+				die(u"org.kde.KWin.ScreenShot3 %1: %2: %3"_s.arg(method, reply.errorName(), reply.errorMessage()));
+			}
 		}
-		arguments.clear(); // close QDBusUnixFileDescriptor
-		if (reply.type() == QDBusMessage::ErrorMessage) {
-			die(u"%1: %2: %3"_s.arg(method, reply.errorName(), reply.errorMessage()));
-		}
-		if (reply.arguments().size() != 1) {
-			die(u"%1 replied with %2 arguments?!"_s.arg(method).arg(reply.arguments().size()));
-		}
-		const QVariantMap metadata = qdbus_cast<QVariantMap>(reply.arguments().at(0));
 		if (metadata[u"type"_s].toString() != u"raw"_s) {
 			die(u"%1 replied with unsupported type %2"_s.arg(method, metadata[u"type"_s].toString()));
 		}
@@ -229,8 +259,7 @@ int main(int argc, char *argv[]) {
 		image = QImage(width, height, QImage::Format(format));
 		capturedScale = qIsFinite(scale) && scale > 0 ? scale : 1;
 		QFile file;
-		if (!file.open(pipeFds[0], QFileDevice::ReadOnly, QFileDevice::AutoCloseHandle)) {
-			::close(pipeFds[0]);
+		if (!file.open(fd, QFileDevice::ReadOnly, QFileDevice::AutoCloseHandle)) {
 			die(u"failed to open pipe for reading"_s);
 		}
 		char *ptr = reinterpret_cast<char *>(image.bits());
