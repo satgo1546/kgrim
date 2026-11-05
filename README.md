@@ -150,4 +150,4 @@ $ file /tmp/a.ppm
 
 ## License
 
-kgrim is distributed under the X11 license.
+kgrim is distributed under the MIT license.
