@@ -233,8 +233,12 @@ int main(int argc, char *argv[]) {
 			::close(pipeFds[0]);
 			die(u"failed to open pipe for reading"_s);
 		}
-		QDataStream stream(&file);
-    stream.readRawData(reinterpret_cast<char *>(image.bits()), image.sizeInBytes());
+		char *ptr = reinterpret_cast<char *>(image.bits());
+		qint64 left = image.sizeInBytes();
+		for (qint64 n; (n = file.read(ptr, left)) > 0; ptr += n, left -= n);
+		if (left) {
+			die(u"failed to read image data: early EOF"_s);
+		}
 	}
 	if (optionScale) {
 		image = image.scaled(
